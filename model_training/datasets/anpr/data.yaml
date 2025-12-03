@@ -1,0 +1,11 @@
+# Path is optional; we’ll give full paths in the script.
+# If you want relative, you can set:
+path: D:\Code\Automatic-number-plate-recognition-ANPR\License_Plate_Recognition
+
+train: images/train
+val: images/val
+test: test/images
+
+nc: 1
+names:
+  0: license_plate
