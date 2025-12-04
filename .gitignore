@@ -4,7 +4,8 @@ yolo11n.pt
 License_Plate_Recognition/test
 License_Plate_Recognition/train
 License_Plate_Recognition/valid
-License_Plate_Recognition\License Plate Recognition.v4-resized640_aug3x-accurate.yolov8 (1).zip
-License_Plate_Recognition\README.dataset.txt
-License_Plate_Recognition\README.roboflow.txt
+License_Plate_Recognition/License Plate Recognition.v4-resized640_aug3x-accurate.yolov8 (1).zip
+License_Plate_Recognition/README.dataset.txt
+License_Plate_Recognition/README.roboflow.txt
 model_training/runs
+__pycache__/
