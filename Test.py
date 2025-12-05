@@ -1,4 +1,89 @@
 import numpy as np
+import imageio
+import os
+
+def save_tensor_as_images(arr, out_dir="saved_images"):
+    os.makedirs(out_dir, exist_ok=True)
+
+    print("Input shape:", arr.shape)
+
+    # Remove batch dimension if exists (N, ...)
+    if arr.ndim == 4 and arr.shape[0] == 1:
+        arr = arr[0]
+
+    # Case 1: HWC image (1,3,4 channels)
+    if arr.ndim == 3 and arr.shape[-1] in (1, 3, 4):
+        img = arr
+        if img.shape[-1] == 1:
+            img = img[:, :, 0]  # drop channel dim
+        imageio.imwrite(f"{out_dir}/image.png", normalize_to_uint8(img))
+        print("Saved: image.png")
+        return
+
+    # Case 2: CHW image
+    if arr.ndim == 3 and arr.shape[0] in (1, 3, 4):
+        img = np.transpose(arr, (1, 2, 0))
+        if img.shape[-1] == 1:
+            img = img[:, :, 0]
+        imageio.imwrite(f"{out_dir}/image.png", normalize_to_uint8(img))
+        print("Saved: image.png")
+        return
+
+    # Case 3: Feature maps: (H, W, C) with C > 4
+    if arr.ndim == 3 and arr.shape[-1] > 4:
+        H, W, C = arr.shape
+        print(f"Detected feature maps: {C} channels")
+
+        for c in range(C):
+            channel_img = arr[:, :, c]
+            imageio.imwrite(
+                f"{out_dir}/channel_{c:03d}.png",
+                normalize_to_uint8(channel_img)
+            )
+        print(f"Saved {C} channel images in {out_dir}")
+        return
+
+    # Case 4: Volume data (D, H, W)
+    if arr.ndim == 3:
+        D, H, W = arr.shape
+        print(f"Detected 3D volume: {D} slices")
+
+        for d in range(D):
+            imageio.imwrite(
+                f"{out_dir}/slice_{d:03d}.png",
+                normalize_to_uint8(arr[d])
+            )
+        print(f"Saved {D} slices in {out_dir}")
+        return
+
+    raise ValueError("Unsupported tensor shape for image saving.")
+
+
+def normalize_to_uint8(img):
+    img = img.astype(np.float32)
+    min_val = img.min()
+    max_val = img.max()
+    if max_val - min_val < 1e-8:
+        return np.zeros_like(img, dtype=np.uint8)
+    img = (img - min_val) / (max_val - min_val)
+    return (img * 255).astype(np.uint8)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
 import matplotlib.pyplot as plt
 
 def visualize_npy(path):
