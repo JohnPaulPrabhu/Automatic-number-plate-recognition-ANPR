@@ -1,80 +1,60 @@
-import os
-import json
-import hashlib
+import numpy as np
+import matplotlib.pyplot as plt
 
-# -------------------------------------------------------
-# Compute MD5 of a file
-# -------------------------------------------------------
-def compute_md5(path, chunk_size=1024 * 1024):
-    md5 = hashlib.md5()
-    with open(path, "rb") as f:
-        while chunk := f.read(chunk_size):
-            md5.update(chunk)
-    return md5.hexdigest()
+def visualize_npy(path):
+    arr = np.load(path)
+    print("Shape:", arr.shape)
+    print("Min:", arr.min(), "Max:", arr.max())
+    print("Mean:", arr.mean(), "Std:", arr.std())
 
-# -------------------------------------------------------
-# Load cached profiler or run new profiler
-# -------------------------------------------------------
-def load_or_profile(
-    dataset_dir,
-    cache_path,
-    run_profiler_fn,
-):
-    """
-    dataset_dir: folder containing H5 files
-    cache_path: file to store profiler output + md5 list
-    run_profiler_fn: your profiler callback that returns a dict
-    """
+    # ---- Detect format ----
+    if arr.ndim == 4:
+        N, A, B, C = arr.shape
+        
+        # Case 1: NCHW -> arr[0] shape = (C,H,W)
+        if C <= 4:  # Most images have 1 or 3 channels
+            layout = "NCHW"
+            img = np.transpose(arr[0], (1, 2, 0))   # C,H,W → H,W,C
+        
+        # Case 2: NHWC -> arr[0] shape = (H,W,C)
+        else:
+            layout = "NHWC"
+            img = arr[0]
 
-    # find all h5 files
-    h5_files = sorted([
-        os.path.join(dataset_dir, f)
-        for f in os.listdir(dataset_dir)
-        if f.lower().endswith(".h5")
-    ])
+        print("Detected layout:", layout)
 
-    # prepare current hash map
-    current_hash = {f: compute_md5(f) for f in h5_files}
+    elif arr.ndim == 3:
+        # Could be CHW or HWC
+        if arr.shape[0] <= 4:  
+            layout = "CHW"
+            img = np.transpose(arr, (1, 2, 0))
+        else:
+            layout = "HWC"
+            img = arr
+        print("Detected layout:", layout)
 
-    # ---------------------------------------------------
-    # CASE 1 — cache exists → validate cache
-    # ---------------------------------------------------
-    if os.path.exists(cache_path):
-        try:
-            with open(cache_path, "r") as f:
-                cache = json.load(f)
+    elif arr.ndim == 2:
+        layout = "HW"
+        img = arr
+        print("Detected layout:", layout)
 
-            cached_hash = cache.get("file_md5", {})
+    else:
+        raise ValueError("Unsupported array shape for visualization")
 
-            # Compare file list
-            if set(cached_hash.keys()) != set(current_hash.keys()):
-                print("[cache] H5 file list changed → re-run profiler")
-            else:
-                # Compare md5 checksums
-                md5_same = all(
-                    cached_hash[f] == current_hash[f]
-                    for f in cached_hash
-                )
-                if md5_same:
-                    print("[cache] Using cached profiler results")
-                    return cache["profiler_result"]
-                else:
-                    print("[cache] H5 file content changed → re-run profiler")
-        except:
-            print("[cache] Cache corrupted → rebuild")
+    # ---- Visualization ----
+    plt.figure(figsize=(6,6))
+    if img.ndim == 2 or img.shape[2] == 1:
+        plt.imshow(img.squeeze(), cmap="gray")
+    else:
+        plt.imshow(img)
+    plt.title(f"Visualization ({layout})")
+    plt.colorbar()
+    plt.show()
 
-    # ---------------------------------------------------
-    # CASE 2 — cache missing or invalid → run profiler
-    # ---------------------------------------------------
-    print("[cache] Running profiler...")
-    profiler_result = run_profiler_fn(dataset_dir)
-
-    # save cache
-    with open(cache_path, "w") as f:
-        json.dump({
-            "file_md5": current_hash,
-            "profiler_result": profiler_result
-        }, f, indent=2)
-
-    print("[cache] Saved profiler cache")
-    return profiler_result
+    # ---- Histogram ----
+    plt.figure(figsize=(6,4))
+    plt.hist(arr.flatten(), bins=100)
+    plt.title("Value Distribution Histogram")
+    plt.xlabel("Value")
+    plt.ylabel("Count")
+    plt.show()
