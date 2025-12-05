@@ -1,4 +1,71 @@
 import numpy as np
+import matplotlib.pyplot as plt
+import math
+
+def save_feature_map_grid(arr, output_path="feature_maps.png", max_channels=64):
+    """
+    arr: 3D numpy array (H, W, C) or (C, H, W) or (D, H, W)
+    Saves a single montage image.
+    """
+
+    # --- Normalize dimensions ---
+    if arr.ndim != 3:
+        raise ValueError("Input must be a 3D array (H,W,C) or (C,H,W) or (D,H,W)")
+
+    # Case: CHW
+    if arr.shape[0] > 4 and arr.shape[-1] <= 4:
+        arr = np.transpose(arr, (1, 2, 0))  # CHW → HWC
+
+    # Case: D,H,W (volume) → treat as feature maps
+    if arr.shape[-1] == 1:
+        arr = arr.squeeze(-1)
+
+    # If now 3D but not HWC, assume first dimension is channels
+    if arr.ndim == 3 and arr.shape[-1] > 4:
+        H, W, C = arr.shape
+    else:
+        raise ValueError("Could not interpret array as feature map tensor.")
+
+    # Limit channels
+    C = min(C, max_channels)
+
+    # Grid size (square)
+    cols = int(math.sqrt(C))
+    rows = math.ceil(C / cols)
+
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 2, rows * 2))
+
+    idx = 0
+    for r in range(rows):
+        for c in range(cols):
+            ax = axes[r, c] if rows > 1 else axes[c]
+            ax.axis("off")
+
+            if idx < C:
+                img = arr[:, :, idx]
+                ax.imshow(img, cmap="gray")
+                ax.set_title(f"ch {idx}", fontsize=6)
+            idx += 1
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+    print(f"Saved montage image to: {output_path}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+import numpy as np
 import imageio
 import os
 
