@@ -1,2 +1,8 @@
 easyocr
 ultralytics
+tensorrt
+onnx
+onnxruntime
+onnxruntime-tools
+onnxconverter-common
+pycuda

@@ -1,7 +1,7 @@
 import time
 import cv2
 
-from src.inference.plate_detector import PlateDetector
+from inference.plate_detector_old import PlateDetector
 from src.ocr.ocr_engine import OCREngine
 from src.utils.profiling import FPSCounter
 

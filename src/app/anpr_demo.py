@@ -1,9 +1,15 @@
 import time
 from collections import defaultdict, Counter
+from src.cuda_preproc import CudaPreprocessor
 
 import cv2
+import torch
 
-from src.inference.plate_detector import PlateDetector
+from src.inference.plate_detector_trt_cuda import PlateDetectorTrtCuda
+# from src.inference.plate_detector import PlateDetector
+# from src.inference.plate_detector_old import PlateDetector
+# from src.inference.onnx_plate_detector import OnnxPlateDetector
+# from src.inference.cuda_trt_anpr_detector import CudaTrtAnprDetector
 from src.ocr.ocr_engine import OCREngine
 from src.tracking.simple_tracker import SimpleTracker
 from src.utils.profiling import FPSCounter
@@ -13,24 +19,58 @@ from src.utils.plate_postprocess import clean_and_validate_plate
 def main():
     # 0 = webcam, or path to your ANPR video
     video_source = "a.mp4"  # <- change as needed
+    # video_source = "sample.mp4"  # <- change as needed
 
     cap = cv2.VideoCapture(video_source)
     if not cap.isOpened():
         print(f"[Error] Cannot open video source: {video_source}")
         return
+    
 
     # Plate detector (FP32, your trained model)
-    plate_detector = PlateDetector(
-        weights_path="model_training/runs/anpr_yolo11/yolo11n_anpr4/weights/best.pt",
-        device=None,
-        conf_thres=0.4,
-    )
+    # plate_detector = PlateDetector(
+    #     # weights_path="model_training/runs/anpr_yolo11/yolo11n_anpr4/weights/best.pt",
+    #     # weights_path="model_training/runs/anpr_yolo11/yolo11n_anpr4/weights/best.engine",
+    #     # weights_path="model_training/runs/anpr_yolo11/yolo11n_anpr4/weights/best-int8.engine",
+    #     # weights_path="models/plate_fp32.onnx",
+    #     weights_path="models/plate_int8.engine",
+    #     # weights_path="models/plate_fp16.engine",
+    #     # weights_path="models/plate_fp16.onnx",
+    #     # onnx_path="models/plate_fp16.onnx",
+    #     device="cuda",
+    #     conf_thres=0.4,
+    # )
+
+    plate_detector = PlateDetectorTrtCuda(
+    engine_path="D:\Code\Automatic-number-plate-recognition-ANPR\models/plate_fp16_trt10.engine",      # or plate_int8.engine
+    conf_thres=0.4,
+    nms_iou_thres=0.5,
+    max_detections=50,
+    input_size=(640, 640),
+    max_src_size=(1920, 1080),                  # adjust if your video is larger
+    cuda_preproc_dll="cpp/cuda_preproc.dll",
+)
+
+#     cuda_preproc = CudaPreprocessor(
+#         dll_path="cpp/cuda_preproc.dll",
+#         max_src_size=(1920, 1080),
+#         dst_size=(640, 640),
+# )
+
+    # plate_detector = CudaTrtAnprDetector(
+    #     engine_path="models/plate_fp16.engine",   # or INT8 engine
+    #     lib_path="cpp/anpr_trt_cuda.dll",
+    #     input_w=640,
+    #     input_h=640,
+    #     max_detections=200,
+    #     conf_thres=0.4,
+    # )
 
     # OCR engine
     ocr_engine = OCREngine(languages=("en",), gpu=True)
 
     # Tracker (IoU-based) for plates
-    tracker = SimpleTracker(iou_thres=0.3, max_age=15)
+    tracker = SimpleTracker(iou_thres=0.3, max_age=1)
 
     fps_counter = FPSCounter(window=30)
 
@@ -66,9 +106,17 @@ def main():
         t1 = time.time()
 
         orig_h, orig_w, _ = frame.shape
-
+        # frame = cuda_preproc.preprocess(frame)
+        if frame.size == 0:
+            continue
         # 1. Plate detection (FP32)
+        # print("Frame shape:", None if frame is None else frame.shape)
+        # frame = frame.squeeze().transpose(1,2,0)
         dets = plate_detector.infer(frame)
+        if dets:
+            last_dets = dets
+        else:
+            last_dets = []  # forget immediately
         # Convert to tracker format: [x1, y1, x2, y2, score, class_id]
         tracker_inputs = []
         for x1, y1, x2, y2, score in dets:
@@ -185,7 +233,8 @@ def main():
             cv2.rectangle(annotated, (x1_s, y1_s), (x2_s, y2_s), color, thickness)
 
             if display_text is not None:
-                label = f"ID {track_id} | {display_text} ({display_conf:.2f})"
+                label = f"{display_text}"
+                # label = f"ID {track_id} | {display_text} ({display_conf:.2f})"
             else:
                 label = f"ID {track_id}"
 

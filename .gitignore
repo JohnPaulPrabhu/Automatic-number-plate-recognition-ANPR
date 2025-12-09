@@ -9,3 +9,6 @@ License_Plate_Recognition/README.dataset.txt
 License_Plate_Recognition/README.roboflow.txt
 model_training/runs
 __pycache__/
+models/
+models_old/
+datasets/

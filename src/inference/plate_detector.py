@@ -7,69 +7,83 @@ from ultralytics import YOLO
 
 class PlateDetector:
     """
-    YOLO-based number plate detector (FP32).
-    Assumes the model is trained to detect license plates.
+    YOLO-based number plate detector.
+
+    Supports:
+      - PyTorch .pt
+      - ONNX .onnx
+      - TensorRT .engine
+    All via Ultralytics YOLO wrapper (handles letterbox, postprocess, etc.).
     """
 
     def __init__(
         self,
-        weights_path: str = "model_training/runs/anpr_yolo11/yolo11n_anpr4/weights/best.pt",
+        weights_path: str = "runs/anpr_yolo11/yolo11n_anpr/weights/best.pt",
         device: str | None = None,
         conf_thres: float = 0.4,
         allowed_class_names: Tuple[str, ...] = ("license_plate", "plate", "number_plate"),
     ):
-        """
-        :param weights_path: Path to YOLO weights (.pt)
-        :param device: 'cuda', 'cpu', or None for auto
-        :param conf_thres: confidence threshold
-        :param allowed_class_names: class names to treat as plates
-        """
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.device = device
         self.conf_thres = conf_thres
+        self.weights_path = weights_path
 
-        # Load YOLO model
+        suffix = Path(weights_path).suffix.lower()
+        self.is_pytorch = suffix == ".pt"
+
+        print(f"[PlateDetector] Loading model: {weights_path}")
         self.model = YOLO(weights_path)
-        self.model.to(self.device)
 
-        # Find plate class IDs based on class names from the model
-        self.class_names = self.model.names  # dict: {id: name}
+        # Only PyTorch models support .to()
+        if self.is_pytorch:
+            self.model.to(self.device)
+
+        self.class_names = self.model.names  # dict {id: name}
+
+        # Identify plate class IDs
         self.plate_class_ids = []
-
         for cid, name in self.class_names.items():
             name_lower = name.lower()
             if any(key in name_lower for key in allowed_class_names):
                 self.plate_class_ids.append(cid)
 
         if not self.plate_class_ids:
-            print("[Warning] No plate class IDs detected from model.names. "
-                  "All classes will be treated as plates.")
-            # If no match, fall back to all classes
+            print("[PlateDetector] Warning: no specific plate class IDs found, using all classes.")
             self.plate_class_ids = list(self.class_names.keys())
 
-        print(f"[PlateDetector] Using plate class IDs: {self.plate_class_ids}")
+        # print(f"[PlateDetector] Using plate class IDs: {self.plate_class_ids}")
+        print(f"[PlateDetector] Backend: {'PyTorch' if self.is_pytorch else 'Exported (ONNX/engine/etc.)'}")
 
-    def infer(self, frame_bgr) -> List[list]:
-        """
-        Run detection on a single BGR frame (H x W x 3, uint8).
-
-        Returns:
-            List of plate detections:
-            [x1, y1, x2, y2, score]
-        """
+    def _infer_pytorch(self, frame_bgr) -> List[list]:
         results = self.model(
             frame_bgr,
             verbose=False,
             device=self.device,
         )[0]
+        return self._results_to_plate_dets(results)
 
+    def _infer_exported(self, frame_bgr) -> List[list]:
+        # For ONNX / engine, we pass device index or 'cpu'
+        if "cuda" in str(self.device):
+            dev_arg = 0
+        else:
+            dev_arg = "cpu"
+
+        results = self.model.predict(
+            frame_bgr,
+            verbose=False,
+            device=dev_arg,
+        )[0]
+        return self._results_to_plate_dets(results)
+
+    def _results_to_plate_dets(self, results) -> List[list]:
         detections: List[list] = []
-
         if results.boxes is None:
             return detections
 
+        # Ultralytics already returns xyxy in original image coords
         boxes = results.boxes.xyxy.cpu().numpy()
         scores = results.boxes.conf.cpu().numpy()
         classes = results.boxes.cls.cpu().numpy()
@@ -86,3 +100,9 @@ class PlateDetector:
             detections.append([x1, y1, x2, y2, float(score)])
 
         return detections
+
+    def infer(self, frame_bgr) -> List[list]:
+        if self.is_pytorch:
+            return self._infer_pytorch(frame_bgr)
+        else:
+            return self._infer_exported(frame_bgr)
