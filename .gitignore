@@ -1,6 +1,7 @@
-a.mp4
-sample.mp4
-yolo11n.pt
+*.mp4
+*.pt
+*.engine
+*.onnx
 License_Plate_Recognition/test
 License_Plate_Recognition/train
 License_Plate_Recognition/valid

@@ -1,8 +1,21 @@
-easyocr
-ultralytics
-tensorrt
-onnx
-onnxruntime
-onnxruntime-tools
-onnxconverter-common
-pycuda
+# Core Dependencies
+numpy==2.2.6
+opencv-python==4.10.0.84
+torch==2.5.1
+torchvision==0.20.1
+
+# Deep Learning / Inference
+ultralytics==8.3.235
+easyocr==1.7.2
+tensorrt==10.14.1.48
+# Note: Ensure python-tensorrt or similar is installed if not using the pip package directly.
+# The PyPI package name is usually `tensorrt`.
+
+# ONNX Runtime
+onnx==1.19.1
+onnxruntime-gpu==1.23.2
+# onnxruntime-tools  # Optional/Tools
+# onnxconverter-common # Optional/Tools
+
+# CUDA
+pycuda==2025.1.2
